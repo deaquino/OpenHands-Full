@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+
 # Initialize variables with default values
 image_name=""
-org_name=""
+dockerhub_user=""
 push=0
 load=0
 tag_suffix=""
@@ -11,21 +12,22 @@ dry_run=0
 
 # Function to display usage information
 usage() {
-    echo "Usage: $0 -i <image_name> [-o <org_name>] [--push] [--load] [-t <tag_suffix>] [--dry]"
+    echo "Usage: $0 -i <image_name> [-u <dockerhub_user>] [--push] [--load] [-t <tag_suffix>] [--dry]"
     echo "  -i: Image name (required)"
-    echo "  -o: Organization name"
-    echo "  --push: Push the image"
-    echo "  --load: Load the image"
+    echo "  -u: Docker Hub username (required for push)"
+    echo "  --push: Push the image to Docker Hub"
+    echo "  --load: Load the image locally"
     echo "  -t: Tag suffix"
     echo "  --dry: Don't build, only create build-args.json"
     exit 1
 }
 
 # Parse command-line options
+# Parse command-line options
 while [[ $# -gt 0 ]]; do
     case $1 in
         -i) image_name="$2"; shift 2 ;;
-        -o) org_name="$2"; shift 2 ;;
+        -u) dockerhub_user="$2"; shift 2 ;;
         --push) push=1; shift ;;
         --load) load=1; shift ;;
         -t) tag_suffix="$2"; shift 2 ;;
@@ -33,11 +35,19 @@ while [[ $# -gt 0 ]]; do
         *) usage ;;
     esac
 done
+
 # Check if required arguments are provided
 if [[ -z "$image_name" ]]; then
     echo "Error: Image name is required."
     usage
 fi
+
+# If push is requested, dockerhub_user is required
+if [[ $push -eq 1 && -z "$dockerhub_user" ]]; then
+    echo "Error: Docker Hub username is required when pushing."
+    usage
+fi
+
 
 echo "Building: $image_name"
 tags=()
@@ -47,10 +57,17 @@ OPENHANDS_BUILD_VERSION="dev"
 cache_tag_base="buildcache"
 cache_tag="$cache_tag_base"
 
+
 if [[ -n $RELEVANT_SHA ]]; then
   git_hash=$(git rev-parse --short "$RELEVANT_SHA")
   tags+=("$git_hash")
   tags+=("$RELEVANT_SHA")
+fi
+
+# Ensure at least one tag is generated before pushing
+if [[ $push -eq 1 && ${#tags[@]} -eq 0 ]]; then
+  echo "No tags generated from git or ref info. Using default tag: latest"
+  tags+=("latest")
 fi
 
 if [[ -n $GITHUB_REF_NAME ]]; then
@@ -97,8 +114,11 @@ fi
 
 source "$dir/config.sh"
 
-if [[ -n "$org_name" ]]; then
-  DOCKER_ORG="$org_name"
+
+# Set Docker Hub as the default registry
+DOCKER_REGISTRY="docker.io"
+if [[ -n "$dockerhub_user" ]]; then
+  DOCKER_ORG="$dockerhub_user"
 fi
 
 # If $DOCKER_IMAGE_SOURCE_TAG is set, add it to the tags
@@ -110,6 +130,8 @@ if [[ -n "$DOCKER_IMAGE_TAG" ]]; then
   tags+=("$DOCKER_IMAGE_TAG")
 fi
 
+
+# Compose Docker Hub repository path
 DOCKER_REPOSITORY="$DOCKER_REGISTRY/$DOCKER_ORG/$DOCKER_IMAGE"
 DOCKER_REPOSITORY=${DOCKER_REPOSITORY,,} # lowercase
 echo "Repo: $DOCKER_REPOSITORY"
