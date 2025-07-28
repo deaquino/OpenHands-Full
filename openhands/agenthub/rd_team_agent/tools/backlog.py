@@ -1,7 +1,7 @@
 import json
 import os
 from typing import Any, Optional
-
+BACKLOG_DIR = os.path.join(os.getcwd(), ".openhands", "backlog")
 
 class BacklogTool:
     """Tool for managing backlog tasks in the RD Team Agent."""
@@ -27,8 +27,7 @@ class BacklogTool:
         Returns:
             str: Path to the created task file
         """
-        backlog_dir = '/workspace/OpenHands-Full/.openhands/backlog'
-        os.makedirs(backlog_dir, exist_ok=True)
+        os.makedirs(BACKLOG_DIR, exist_ok=True)
 
         task_data = {
             'title': title,
@@ -41,7 +40,7 @@ class BacklogTool:
 
         # Create a safe filename
         safe_title = title.replace(' ', '_').replace('/', '_').replace('\\', '_')
-        task_file = os.path.join(backlog_dir, f'{safe_title}.json')
+        task_file = os.path.join(BACKLOG_DIR, f'{safe_title}.json')
         with open(task_file, 'w') as f:
             json.dump(task_data, f, indent=2)
 
@@ -59,10 +58,9 @@ class BacklogTool:
         Returns:
             bool: True if task was found and updated, False otherwise
         """
-        backlog_dir = '/workspace/OpenHands-Full/.openhands/backlog'
         # Create a safe filename matching the one used in create_backlog_task
         safe_title = task_title.replace(' ', '_').replace('/', '_').replace('\\', '_')
-        task_file = os.path.join(backlog_dir, f'{safe_title}.json')
+        task_file = os.path.join(BACKLOG_DIR, f'{safe_title}.json')
 
         if not os.path.exists(task_file):
             return False
@@ -84,21 +82,49 @@ class BacklogTool:
         Returns:
             list[Dict]: List of all task dictionaries
         """
-        backlog_dir = '/workspace/OpenHands-Full/.openhands/backlog'
         tasks: list[dict[str, Any]] = []
 
-        if not os.path.exists(backlog_dir):
+        if not os.path.exists(BACKLOG_DIR):
             return tasks
 
-        for filename in os.listdir(backlog_dir):
+        for filename in os.listdir(BACKLOG_DIR):
             if filename.endswith('.json'):
-                with open(os.path.join(backlog_dir, filename), 'r') as f:
+                with open(os.path.join(BACKLOG_DIR, filename), 'r') as f:
                     try:
                         tasks.append(json.load(f))
                     except json.JSONDecodeError:
                         continue
 
         return tasks
+
+    @staticmethod
+    def update_task(
+        task_id: str,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        phase: Optional[str] = None,
+        status: Optional[str] = None,
+        acceptance_criteria: Optional[str] = None,
+    ) -> bool:
+        """Updates an existing backlog task. Returns True if successful."""
+        task_path = os.path.join(BACKLOG_DIR, f"{task_id}.json")
+        if not os.path.exists(task_path):
+            return False
+        with open(task_path, "r", encoding="utf-8") as f:
+            task = json.load(f)
+        if title is not None:
+            task["title"] = title
+        if description is not None:
+            task["description"] = description
+        if phase is not None:
+            task["phase"] = phase
+        if status is not None:
+            task["status"] = status
+        if acceptance_criteria is not None:
+            task["acceptance_criteria"] = acceptance_criteria
+        with open(task_path, "w", encoding="utf-8") as f:
+            json.dump(task, f, indent=2, ensure_ascii=False)
+        return True
 
     @staticmethod
     def get_tasks_by_phase(phase: str) -> list[dict[str, Any]]:
@@ -111,15 +137,14 @@ class BacklogTool:
         Returns:
             list[Dict]: List of task dictionaries
         """
-        backlog_dir = '/workspace/OpenHands-Full/.openhands/backlog'
         tasks: list[dict[str, Any]] = []
 
-        if not os.path.exists(backlog_dir):
+        if not os.path.exists(BACKLOG_DIR):
             return tasks
 
-        for filename in os.listdir(backlog_dir):
+        for filename in os.listdir(BACKLOG_DIR):
             if filename.endswith('.json'):
-                with open(os.path.join(backlog_dir, filename), 'r') as f:
+                with open(os.path.join(BACKLOG_DIR, filename), 'r') as f:
                     try:
                         task = json.load(f)
                         if task.get('phase', '').lower() == phase.lower():
